@@ -1,10 +1,7 @@
 
 # YampaConvert
 
-YampaConvert program is translation tool from designated Yampa program to xml file. This xml file 
-expresses the model of signal function behavior in Yampa program and can be used with Uppaal. 
-In Uppaal, We can simulation and verify Yampa program. For example, YampaConvert program
-can translation the files that has been published on the website https://github.com/SqlabNR/YampaConvertTargetProgram
+YampaConvert program is translation tool from designated Yampa program to xml file. This xml file expresses the model of signal function behavior in Yampa program and can be used with Uppaal. In Uppaal, We can simulation and verify Yampa program. For example, YampaConvert program can translation the files that has been published on the website https://github.com/SqlabNR/YampaConvertTargetProgram
 
 
 
@@ -19,7 +16,9 @@ JavaCC
 Over the command prompt:
 
 $> javacc Calc.jj
+
 $> javacc Function.jj
+
 $> javac *.java
 
 
