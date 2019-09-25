@@ -1,0 +1,304 @@
+options {
+    STATIC = false;
+}
+
+PARSER_BEGIN(Calc)
+public class Calc{
+    String update;
+    public static String under4(String n){
+        if(n.length() < 5){
+            return n;
+        }
+        else{
+            return n.substring(n.length()-4);
+        }
+    }
+    public static String top4(String n){
+        if(n.length() < 5){
+            return n;
+        }
+        else{
+            return n.substring(0,4);
+        }
+    }
+
+    public static String[] numVal(String num){
+        String[] ret = new String[2];
+        String numstr = num;
+        String minus = "";
+        int place;
+        if(num.contains("-")){
+            minus = "-";
+            numstr = num.substring(1);
+        }
+        if(numstr.contains(".")){
+            place = numstr.indexOf(".");
+            ret[0] = minus + under4(numstr.substring(0,place));
+            ret[1] = minus + top4(numstr.substring(place+1) + "000");
+        }
+        else{
+            ret[0] = minus + under4(numstr);
+            ret[1] = "0";
+        }
+        return ret;
+    }
+}
+PARSER_END(Calc)
+
+SKIP    :{
+        " "
+    |   "\t"
+    |   "\r"
+    |   "\f"
+    |   "\n"
+}
+
+TOKEN   :{
+        <   ADDOP:  "+">
+    |   <   SUBOP:  "-">
+    |   <   MULOP:  "*">
+    |   <   DIVOP:  "/">
+    |   <   LP:     "(">
+    |   <   RP:     ")">
+    |   <   DOT:    ".">
+    |   <   CL:     "<">
+    |   <   CR:     ">">
+    |   <   CEL:    "<=">
+    |   <   CER:    ">=">
+    |   <   CE:     "==">
+    |   <   NEQ:    "/=">
+    |   <   AND:    "&&">
+    |   <   OR:     "||">
+    |   <   NOT:    "not">
+    |   <   ANDW:    "and">
+    |   <   ORW:     "or">
+    |   < EVENT:    "Event" >
+    |   < NOEVENT:  "NoEvent" >
+    |   < NUMBER:   ("-")?(["0"-"9"]|["1"-"9"](["0"-"9"])*)(["."](["0"-"9"])+)? >
+    |   <   VALUE:  ["a"-"z"](["0"-"9","a"-"z","A"-"Z","\'","_"])* >
+}
+
+String[] valornum(String address) :
+{
+    Token t= null;
+    String[] ret = new String[2];
+}
+{
+        t=<VALUE>   {
+                    ret[0] = "Top_" + address + t.image;
+                    ret[1] = "Low_" + address + t.image;
+                    return ret;
+                    }
+    |   <SUBOP> t=<VALUE> {
+                        ret[0] = "-Top_" + address + t.image;
+                        ret[1] = "-Low_" + address + t.image;
+                        return ret;
+                        }
+    |   t=<NUMBER> {return numVal(t.image);}
+}
+
+void start(String address,String input) :
+{}
+{
+    Expr(address,input)
+}
+
+void Expr(String address,String input)   :
+{String[] num;}
+{
+    {update="";} num=addExpr(address) {update += "Top_" + input + " := " + num[0] + ",\n" + "Low_" + input + " := " + num[1] + ",\n";}
+}
+
+String[] addExpr(String address)    :
+{String[] left,right,ret=new String[2];}
+{
+        LOOKAHEAD(20) left=mulExpr(address) <ADDOP> right=addExpr(address)    {
+                                                                            ret[0] = "add(" + left[0] +"," + left[1] + "," + right[0] + "," + right[1] + ",TOP)";
+                                                                            ret[1] = "add(" + left[0] +"," + left[1] + "," + right[0] + "," + right[1] + ",LOW)";
+                                                                            return ret;
+                                                                         }
+    |   LOOKAHEAD(20) left=mulExpr(address) <SUBOP> right=addExpr(address)    {
+                                                                            ret[0] = "sub(" + left[0] +"," + left[1] + "," + right[0] + "," + right[1] + ",TOP)";
+                                                                            ret[1] = "sub(" + left[0] +"," + left[1] + "," + right[0] + "," + right[1] + ",LOW)";
+                                                                            return ret;
+                                                                         }
+    |   left=mulExpr(address) {return left;} 
+}
+
+String[] mulExpr(String address)    :
+{String[] left,right,ret = new String[2];}
+{
+        LOOKAHEAD(20) left=var(address) <MULOP> right=mulExpr(address)    {
+                                                                            ret[0] = "mult(" + left[0] +"," + left[1] + "," + right[0] + "," + right[1] + ",TOP)";
+                                                                            ret[1] = "mult(" + left[0] +"," + left[1] + "," + right[0] + "," + right[1] + ",LOW)";
+                                                                            return ret;
+                                                                         }
+    |   LOOKAHEAD(20) left=var(address) <DIVOP> right=mulExpr(address)    {
+                                                                            ret[0] = "div(" + left[0] +"," + left[1] + "," + right[0] + "," + right[1] + ",TOP)";
+                                                                            ret[1] = "div(" + left[0] +"," + left[1] + "," + right[0] + "," + right[1] + ",LOW)";
+                                                                            return ret;
+                                                                         }
+    |   left=var(address) {return left;}
+}
+
+String[] var(String address)    :
+{
+    String[] ret,ret2;
+    Token t=null;
+}
+{
+        LOOKAHEAD(20) ret=valornum(address) {return ret;} 
+    |   LOOKAHEAD(20) <LP> ret=addExpr(address) <RP> {return ret;}
+    |   LOOKAHEAD(20) <SUBOP> <LP> ret=addExpr(address) <RP> {
+                                                                ret2 = new String[2];
+                                                                ret2[0] = "-" + ret[0];
+                                                                ret2[1] = "-" + ret[1];
+                                                                return ret2;
+                                                            }
+}
+
+void guard(String address)    :
+{String str;}
+{
+    str=eventconnect(address){update = str;}
+}
+
+String eventconnect(String address) :
+{
+    String str;
+    String str2;
+    Token t = null;
+}
+{
+        LOOKAHEAD(3) <LP> str=eventconnect(address) {str = "(" + str + ") ";}<RP> (LOOKAHEAD(2) (t=<ANDW>|t=<ORW>) str2=eventconnect(address) {str = str + t.image + "\n" + str2;})* {return str;}
+    |   <NOT> <LP> str=eventconnect(address) {str = "not(" + str + ") ";}<RP> (LOOKAHEAD(2) (t=<ANDW>|t=<ORW>) str2=eventconnect(address) {str = str + t.image + "\n" + str2;})* {return str;}
+    |   LOOKAHEAD(3) str=eventguard(address){return str;}
+}
+
+String eventguard(String address)   :
+{String str;
+ String str2;
+ Token t = null;
+}
+{
+        <LP> str=eventguard(address) <RP> {
+                                        str = "(" + str + ")";
+                                   }  
+                                   (LOOKAHEAD(2) (t=<AND> | t=<OR>) str2=eventguard(address) {
+                                                                                        str = str + " " + t.image + " " + str2;
+                                                                                      }
+                                                                                      )* {return str;}
+
+    |   t=<VALUE> <NEQ> <NOEVENT> {
+                                        str = address + t.image + " /= NoEvent";
+                                  } 
+                                  (LOOKAHEAD(2) (t=<AND> | t=<OR>) str2=eventguard(address) {
+                                                                                        str = str + " " + t.image + " " + str2;
+                                                                                     }
+                                                                                     )* {return str;}
+}
+
+void numguard(String address,String input)    :
+{String str;}
+{
+    {update = "";}str=orExpr(address){update += input + " := " + str + ",\n";}
+}
+
+String orExpr(String address)   :
+{String str1;
+ String str2;
+ String ret;
+}
+{
+        LOOKAHEAD(100) str1=andExpr(address) (<OR>|<ORW>) str2=orExpr(address){
+                                                                            ret = "OR(" + str1 + "," + str2 + ")";
+                                                                            return ret;  
+                                                                     }
+    |   LOOKAHEAD(100) str1=andExpr(address) {return str1;}
+}
+
+String andExpr(String address)   :
+{String str1;
+ String str2;
+ String ret;
+}
+{
+        LOOKAHEAD(100) str1=notExpr(address) (<AND>|<ANDW>) str2=andExpr(address){
+                                                                            ret = "AND(" + str1 + "," + str2 + ")";
+                                                                            return ret;  
+                                                                        }
+    |   LOOKAHEAD(100) str1=notExpr(address) {return str1;}
+}
+
+String notExpr(String address)   :
+{String str;
+ String str2;
+ String ret;
+}
+{
+        LOOKAHEAD(100) <NOT> <LP> str=orExpr(address) <RP>{
+                                                            ret = "NOT(" + str + ")";
+                                                            return ret;        
+                                                         }
+    |   LOOKAHEAD(100) <LP> str=orExpr(address) <RP> {return str;}
+    |   LOOKAHEAD(100) str=compare(address) {return str;}
+}
+
+String compare(String address) :
+{
+    String[] left,right;
+    String command="",ret;
+    Token t=null;
+}
+{
+    left=addExpr(address) (t=<CL>|t=<CR>|t=<CEL>|t=<CER>|t=<CE>) right=addExpr(address) {
+                                                                                            if(t.image.equals("<"))     command = "compareL";
+                                                                                            if(t.image.equals(">"))     command = "compareR";
+                                                                                            if(t.image.equals("<="))    command = "compareEL";
+                                                                                            if(t.image.equals(">="))    command = "compareER";
+                                                                                            if(t.image.equals("=="))    command = "compareE";
+                                                                                            ret = command + "(" + left[0] +"," + left[1] + "," + right[0] + "," + right[1] + ")";
+                                                                                            return ret;        
+                                                        }                                                                                                     
+}
+
+String guard2(String address)    :
+{String str="";}
+{
+    str=numconnect2(address) {return  str;}
+}
+
+String numconnect2(String address) :
+{
+    String str="";
+}
+{
+        <LP> str=numguard2(address) <RP>{return "(" + str + ")";} 
+}
+
+String numguard2(String address)   :
+{String str = "",str2;
+ String[] left,right;
+ Token t = null;
+}
+{
+        LOOKAHEAD(3) <LP> str=numguard2(address) <RP> {
+                                        str = "(" + str + ")";
+                                   }  
+                                   (LOOKAHEAD(2) (t=<AND> | t=<OR>) str2=numguard2(address) {
+                                                                                        str = str + " " + t.image + " " + str2;
+                                                                                      }
+                                                                                      )* {return str;}
+
+    |   LOOKAHEAD(3) left=addExpr(address) (t=<CL>|t=<CR>|t=<CEL>|t=<CER>|t=<CE>) right=addExpr(address) {
+                                                                                            if(t.image.equals("<"))     str = "compareL(" + left[0] + "," + left[1] + "," + right[0] + "," + right[1] + ")";
+                                                                                            if(t.image.equals(">"))     str = "compareR(" + left[0] + "," + left[1] + "," + right[0] + "," + right[1] + ")";
+                                                                                            if(t.image.equals("<="))    str = "compareEL(" + left[0] + "," + left[1] + "," + right[0] + "," + right[1] + ")";
+                                                                                            if(t.image.equals(">="))    str = "compareER(" + left[0] + "," + left[1] + "," + right[0] + "," + right[1] + ")";
+                                                                                            if(t.image.equals("=="))    str = "compareE(" + left[0] + "," + left[1] + "," + right[0] + "," + right[1] + ")";
+                                                                                            }
+                                  (LOOKAHEAD(2) (t=<AND> | t=<OR>) str2=numguard2(address) {
+                                                                                        str = str + " " + t.image + " " + str2;
+                                                                                     }
+                                                                                     )* {return str;}
+}
